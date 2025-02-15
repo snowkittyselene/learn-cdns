@@ -1,10 +1,13 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
@@ -47,12 +50,12 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	contentType := header.Header.Get("Content-Type")
-
-	imageData, err := io.ReadAll(data)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't decode image data", err)
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil || (mediaType != "image/jpeg" && mediaType != "image/png") {
+		respondWithError(w, http.StatusBadRequest, "Couldn't parse media type", err)
 		return
 	}
+	extension, _ := strings.CutPrefix(contentType, "image/")
 	metadata, err := cfg.db.GetVideo(videoID)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't get video info", err)
@@ -63,9 +66,18 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	imageDataString := base64.StdEncoding.EncodeToString(imageData)
+	filePath := filepath.Join(cfg.assetsRoot, fmt.Sprintf("%s.%s", videoIDString, extension))
+	newFile, err := os.Create(filePath)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't make new file", err)
+		return
+	}
+	if _, err = io.Copy(newFile, data); err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't add image data to file", err)
+		return
+	}
 
-	tnURL := fmt.Sprintf("data:%s;base64,%s", contentType, imageDataString)
+	tnURL := fmt.Sprintf("http://localhost:%s/assets/%s.%s", cfg.port, videoIDString, extension)
 
 	updatedVideo := database.Video{
 		ID:                videoID,
