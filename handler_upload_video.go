@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"mime"
@@ -120,14 +121,10 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	}
 
 	url := cfg.getObjectURL(key)
+	fmt.Printf("url: %s", url)
 	video.VideoURL = &url
 	if err = cfg.db.UpdateVideo(video); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't update video", err)
-		return
-	}
-	video, err = cfg.dbVideoToSignedVideo(video)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't generate signed URL", err)
 		return
 	}
 	respondWithJSON(w, http.StatusOK, video)
@@ -170,7 +167,6 @@ func getVideoAspectRatio(filePath string) (string, error) {
 func processVideoForFastStart(filePath string) (string, error) {
 	outputPath := filePath + ".processing"
 	command := exec.Command("ffmpeg", "-i", filePath, "-c", "copy", "-movflags", "faststart", "-f", "mp4", outputPath)
-	command.Stderr = os.Stderr
 	if err := command.Run(); err != nil {
 		return "", err
 	}
