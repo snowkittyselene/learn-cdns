@@ -121,12 +121,15 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 
 	url := cfg.getObjectURL(key)
 	video.VideoURL = &url
-	err = cfg.db.UpdateVideo(video)
-	if err != nil {
+	if err = cfg.db.UpdateVideo(video); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't update video", err)
 		return
 	}
-
+	video, err = cfg.dbVideoToSignedVideo(video)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't generate signed URL", err)
+		return
+	}
 	respondWithJSON(w, http.StatusOK, video)
 }
 
