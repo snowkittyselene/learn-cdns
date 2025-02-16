@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/database"
 
 	"github.com/joho/godotenv"
@@ -20,12 +23,12 @@ type apiConfig struct {
 	s3Bucket         string
 	s3Region         string
 	s3CfDistribution string
+	s3Client         *s3.Client
 	port             string
 }
 
 func main() {
 	godotenv.Load(".env")
-
 	pathToDB := os.Getenv("DB_PATH")
 	if pathToDB == "" {
 		log.Fatal("DB_URL must be set")
@@ -75,6 +78,11 @@ func main() {
 	if port == "" {
 		log.Fatal("PORT environment variable is not set")
 	}
+	s3Config, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		log.Fatal("Couldn't load S3 config")
+	}
+	s3Client := s3.NewFromConfig(s3Config)
 
 	cfg := apiConfig{
 		db:               db,
@@ -85,6 +93,7 @@ func main() {
 		s3Bucket:         s3Bucket,
 		s3Region:         s3Region,
 		s3CfDistribution: s3CfDistribution,
+		s3Client:         s3Client,
 		port:             port,
 	}
 
@@ -111,7 +120,6 @@ func main() {
 	mux.HandleFunc("POST /api/video_upload/{videoID}", cfg.handlerUploadVideo)
 	mux.HandleFunc("GET /api/videos", cfg.handlerVideosRetrieve)
 	mux.HandleFunc("GET /api/videos/{videoID}", cfg.handlerVideoGet)
-	//mux.HandleFunc("GET /api/thumbnails/{videoID}", cfg.handlerThumbnailGet)
 	mux.HandleFunc("DELETE /api/videos/{videoID}", cfg.handlerVideoMetaDelete)
 
 	mux.HandleFunc("POST /admin/reset", cfg.handlerReset)
